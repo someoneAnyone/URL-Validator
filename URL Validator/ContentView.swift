@@ -7,15 +7,61 @@
 //
 
 import SwiftUI
+import Combine
 
-struct ContentView: View {
-    var body: some View {
-        Text("Hello World")
+class NewSiteViewModel: ObservableObject {
+    
+    @Published var validatedURL: URL?
+    
+    //@Published var secretKey: String?
+    @Published var urlString: String = ""
+    @Published var isValidURL: Bool = false
+    
+    private var cancellable = Set<AnyCancellable>()
+    
+    init() {
+        $urlString
+            .dropFirst(1)
+            .throttle(for: 0.5, scheduler: DispatchQueue(label: "Validator"), latest: true)
+            .removeDuplicates()
+            .compactMap { string -> AnyPublisher<URL?, Never> in
+                return URL.testURLPublisher(string: string)
+        }
+        .switchToLatest()
+        .receive(on: RunLoop.main)
+        .sink { recievedURL in
+            guard let url = recievedURL else {
+                self.validatedURL = nil
+                self.isValidURL = false
+                return
+            }
+            self.validatedURL = url
+            self.isValidURL = true
+            
+        }
+        .store(in: &cancellable)
     }
 }
 
-struct ContentView_Previews: PreviewProvider {
-    static var previews: some View {
-        ContentView()
+
+struct ContentView: View {
+    
+    @ObservedObject var model: NewSiteViewModel = NewSiteViewModel()
+    
+    @State var networkActivity = false
+    
+    var body: some View {
+        VStack{
+            TextField("url string", text: $model.urlString)
+                .keyboardType(.URL)
+                .autocapitalization(.none)
+                .disableAutocorrection(true)
+            Text("Is valid: \(model.isValidURL ? "true" : "false")")
+            Text("Validated URL: \(model.validatedURL?.absoluteString ?? "")")
+            Text("Network activity: \(networkActivity ? "true" : "false")")
+        }.onReceive(URL.networkActivityPublisher
+            .receive(on: DispatchQueue.main)) {
+                self.networkActivity = $0
+        }.padding()
     }
 }
