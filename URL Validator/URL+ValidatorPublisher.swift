@@ -17,13 +17,13 @@ enum URLValidatorError: Error {
     case serverError(String)
 }
 
-
-
 public extension URL {
     
     static let networkActivityPublisher = PassthroughSubject<Bool, Never>()
     static let isValidURLPublisher = PassthroughSubject<Bool, Never>()
+    static let isReachableURLPublisher = PassthroughSubject<Bool, Never>()
 
+    
     fileprivate static func validateURL(string: String) throws -> URL {
         
         // Ignore Nils & Empty Strings
@@ -83,8 +83,11 @@ public extension URL {
             .tryMap { data, response -> URL? in
                 // URL Responded - Check Status Code
                 guard let urlResponse = response as? HTTPURLResponse, ((urlResponse.statusCode >= 200 && urlResponse.statusCode < 400) || urlResponse.statusCode == 405) else {
+                    
+                    isReachableURLPublisher.send(false)
                         throw URLValidatorError.serverError("Could not find the a servr at: \(urlToCheck)")
                 }
+                isReachableURLPublisher.send(true)
                         return urlResponse.url?.absoluteURL
             }
         .catch { err in

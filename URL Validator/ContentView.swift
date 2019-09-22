@@ -13,7 +13,6 @@ class NewSiteViewModel: ObservableObject {
     
     @Published var validatedURL: URL?
     
-    //@Published var secretKey: String?
     @Published var urlString: String = ""
     @Published var isValidURL: Bool = false
     
@@ -22,7 +21,9 @@ class NewSiteViewModel: ObservableObject {
     init() {
         $urlString
             .dropFirst(1)
-            .throttle(for: 0.5, scheduler: DispatchQueue(label: "Validator"), latest: true)
+            .debounce(for: 0.5, scheduler: RunLoop.main)
+            
+            // .throttle(for: 0.5, scheduler: DispatchQueue(label: "Validator"), latest: true)
             .removeDuplicates()
             .compactMap { string -> AnyPublisher<URL?, Never> in
                 return URL.testURLPublisher(string: string)
@@ -56,9 +57,12 @@ struct ContentView: View {
                 .keyboardType(.URL)
                 .autocapitalization(.none)
                 .disableAutocorrection(true)
-            Text("Is valid: \(model.isValidURL ? "true" : "false")")
-            Text("Validated URL: \(model.validatedURL?.absoluteString ?? "")")
+                .textFieldStyle(RoundedBorderTextFieldStyle())
             Text("Network activity: \(networkActivity ? "true" : "false")")
+            Text("Is valid: \(model.isValidURL ? "true" : "false")")
+            if model.isValidURL {
+                Text("Validated URL: \(model.validatedURL?.absoluteString ?? "")")
+            }
         }.onReceive(URL.networkActivityPublisher
             .receive(on: DispatchQueue.main)) {
                 self.networkActivity = $0
